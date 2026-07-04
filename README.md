@@ -6,8 +6,8 @@ Repo ini berisi dua bagian utama:
 
 | Bagian | File | Deskripsi |
 |---|---|---|
-| Firmware | `esp32_feeder_rki.ino` | Kode yang berjalan di ESP32 (Wemos D1 R32) |
-| Dashboard | `autofeeder_dashboard.html` | Panel kendali berbasis web (MQTT over WebSocket) |
+| Firmware | `auto_feeder.ino` | Kode yang berjalan di ESP32 (Wemos D1 R32) |
+| Dashboard | `index.html` | Panel kendali berbasis web (MQTT over WebSocket) |
 
 ---
 
