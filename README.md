@@ -170,4 +170,4 @@ Serial Monitor tidak menerima input balik dari user (bersifat *output-only* di f
                                      └─► TaskMQTT ──(JSON via MQTT)──► shiftr.io ──(WSS)──► Dashboard Web
 ```
 
-Empat task FreeRTOS bekerja paralel, saling berbagi satu struct data lewat pointer, dan hanya `TaskMQTT` yang "berbicara" ke dunia luar, menjaga sensor & servo tetap responsif meski jaringan sedang tidak stabil.
+Empat task FreeRTOS bekerja paralel, saling berbagi satu struct data lewat pointer, dan hanya `TaskMQTT` yang "berbicara" ke dunia luar, untuk menjaga sensor & servo tetap responsif meski jaringan sedang tidak stabil.
