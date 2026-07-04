@@ -128,7 +128,34 @@ Dengan begini, saat `TaskSensorLED` mengubah `data->distance`, task lain (`TaskM
 
 ---
 
-## 6. Serial Monitor (Input/Output)
+## 6. PWM (Pulse Width Modulation)
+ 
+Aktuator servo pada katup pakan dikendalikan dengan **PWM**, bukan sekadar `HIGH`/`LOW` digital biasa. PWM dipakai karena servo membutuhkan sinyal berulang dengan **lebar pulsa (duty cycle) tertentu** untuk menentukan sudut putarnya, tidak hanya ON/OFF saja.
+ 
+```cpp
+#include <ESP32Servo.h>
+Servo feederServo;
+ 
+feederServo.attach(PIN_SERVO);   // pasang servo ke pin PWM-capable (GPIO18)
+feederServo.write(0);            // sudut 0° → katup tertutup
+feederServo.write(180);          // sudut 180° → katup terbuka
+```
+ 
+Yang terjadi di balik `feederServo.write()`:
+ 
+- Library **`ESP32Servo`** membangkitkan sinyal PWM lewat modul **LEDC** (LED Control peripheral) bawaan ESP32, dengan periode ±20 ms (frekuensi ±50 Hz) — standar untuk servo hobi.
+- Sudut servo ditentukan dari **lebar pulsa HIGH** dalam periode tersebut: sekitar 1 ms untuk 0°, sekitar 2 ms untuk 180°. Semakin lebar pulsa HIGH, semakin besar sudut putar motor.
+- Fungsi `write(angle)` menerjemahkan sudut (0–180°) menjadi nilai duty cycle PWM yang sesuai secara otomatis, sehingga di kode aplikasi (`triggerFeeding()`) kita cukup memanggil `feederServo.write(180)` / `feederServo.write(0)` tanpa perlu menghitung duty cycle manual.
+Alur penggunaannya di `triggerFeeding()`:
+```cpp
+feederServo.write(180);                     // PWM: buka katup
+vTaskDelay(pdMS_TO_TICKS(durationMs));      // katup tetap terbuka selama durasi tertentu
+feederServo.write(0);                       // PWM: tutup katup kembali
+```
+ 
+Durasi katup terbuka (`durationMs`) inilah yang bisa diatur dari dashboard (default 3000 ms), sehingga secara tidak langsung dashboard juga ikut mengatur berapa lama sinyal PWM "posisi terbuka" dipertahankan sebelum servo dikembalikan ke posisi tertutup.
+
+## 7. Serial Monitor (Input/Output)
 
 Serial Monitor (`Serial.begin(115200)`) dipakai murni untuk **debugging lewat USB**, bukan untuk kendali normal sistem (kendali normal lewat MQTT/dashboard). Contoh output yang bisa dilihat saat alat menyala:
 
