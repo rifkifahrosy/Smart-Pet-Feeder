@@ -646,7 +646,7 @@
         <label>Topik Perintah</label>
         <input id="cfgTopicCmd" value="/feeder/command">
       </div>
-      <div>
+      <!-- <div>
         <label>Jarak Penuh (cm) — mirror saja</label>
         <input id="cfgDistFull" type="number" value="5">
       </div>
@@ -657,20 +657,10 @@
       <div>
         <label>Jarak Habis (cm) — mirror saja</label>
         <input id="cfgDistEmpty" type="number" value="17">
-      </div>
+      </div> -->
       <div class="settings-actions">
         <button class="primary" id="connectBtn">Hubungkan</button>
         <button class="ghost" id="disconnectBtn">Putuskan</button>
-      </div>
-      <div class="settings-note">
-        ⚠ Kredensial broker di atas sudah diisi sesuai firmware (esp32_feeder_rki.ino). Karena file ini berisi
-        kredensial dalam bentuk teks polos, jangan unggah/deploy dashboard ini ke tempat publik tanpa mengganti
-        username/password terlebih dahulu.
-      </div>
-      <div class="settings-note info">
-        ℹ Nilai jarak penuh/kritis/habis di atas hanya mengatur tampilan LED <b>di dashboard</b> (mirror). Nilai
-        sebenarnya sudah di-hardcode di firmware (DISTANCE_FULL/CRITICAL/EMPTY) dan hanya berubah jika kamu
-        meng-upload ulang kode ke ESP32.
       </div>
     </div>
 
@@ -784,7 +774,7 @@
 
     <!-- SERIAL LOG -->
     <div class="panel log-panel">
-      <p class="panel-title">Log Telegram MQTT (mirip Serial Monitor)</p>
+      <p class="panel-title">Log MQTT</p>
       <div class="log-box" id="logBox">
         <div class="empty">Menunggu data dari broker...</div>
       </div>
