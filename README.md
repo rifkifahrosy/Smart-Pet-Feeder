@@ -11,20 +11,20 @@ Repo ini berisi dua bagian utama:
 
 ---
 
-## 🎬 Demo Singkat
+## Demo Singkat
  
 <div align="center">
 <a href="https://www.youtube.com/watch?v=u8sXHdluWr4" target="_blank">
-   <img src="https://img.youtube.com/vi/u8sXHdluWr4/maxresdefault.jpg" alt="Teks Alternatif" width="100%" />
+   <img src="https://img.youtube.com/vi/u8sXHdluWr4/0.jpg" alt="Teks Alternatif" width="35%" />
 </a>
  
 **[▶ Tonton demo lengkapnya di YouTube](https://www.youtube.com/watch?v=u8sXHdluWr4)**
  
 *Klik thumbnail di atas untuk melihat sensor, servo, LED indikator, dan dashboard bekerja bersamaan secara real-time.*
- 
-</div>
----
 
+</div>
+
+---
 ## 1. Manajemen Dashboard
 
 Dashboard adalah file HTML tunggal (tanpa build tool, tanpa server backend) yang terhubung **langsung dari browser** ke broker MQTT (`shiftr.io`) lewat WebSocket, sehingga bisa dibuka dari laptop maupun HP tanpa instalasi apa pun.
