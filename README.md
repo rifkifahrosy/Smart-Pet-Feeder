@@ -212,7 +212,3 @@ Serial Monitor tidak menerima input balik dari user (bersifat *output-only* di f
 ```
 
 Empat task FreeRTOS bekerja paralel, saling berbagi satu struct data lewat pointer, dan hanya `TaskMQTT` yang "berbicara" ke dunia luar, untuk menjaga sensor & servo tetap responsif meski jaringan sedang tidak stabil.
-
-## Demo Singkat
-[![Alternatif Teks](https://img.youtube.com/vi/u8sXHdluWr4/0.jpg)](https://www.youtube.com/watch?v=u8sXHdluWr4)
-
