@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AUTOFEEDER // Panel Kendali</title>
+  <meta name="description"
+    content="Dashboard pemantau dan kendali sistem pemberi pakan ikan otomatis berbasis ESP32 via MQTT.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link
     href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
@@ -12,9 +14,9 @@
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
     :root {
-      --bg: #12151a;
-      --panel: #1b2027;
-      --panel-2: #232a33;
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1f2937;
       --border: #2d3540;
       --copper: #c9834f;
       --copper-light: #e2a874;
@@ -23,31 +25,99 @@
       --red: #ff5a5a;
       --green: #3ecf6e;
       --amber: #ffb238;
+      --blue: #38bdf8;
       --font-display: 'Space Grotesk', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
     }
 
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     body {
-      margin: 0;
       background:
-        radial-gradient(1200px 600px at 15% -10%, #1a2029 0%, transparent 60%),
+        radial-gradient(ellipse 1000px 600px at 10% -5%, rgba(201, 131, 79, 0.08) 0%, transparent 60%),
+        radial-gradient(ellipse 800px 500px at 90% 90%, rgba(56, 189, 248, 0.06) 0%, transparent 60%),
         var(--bg);
       color: var(--text);
       font-family: var(--font-mono);
       min-height: 100vh;
       padding: 28px 20px 60px;
+      overflow-x: hidden;
+    }
+
+    /* ─── Floating background particles ─── */
+    #bg-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+      opacity: .35;
     }
 
     .wrap {
-      max-width: 1040px;
+      max-width: 1100px;
       margin: 0 auto;
+      position: relative;
+      z-index: 1;
     }
 
-    /* ---------- Header ---------- */
+    /* ─── Toast notifications ─── */
+    #toastContainer {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 9999;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-family: var(--font-display);
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      animation: toast-in .35s cubic-bezier(.34, 1.56, .64, 1) forwards;
+      transform: translateX(120%);
+      min-width: 220px;
+      max-width: 320px;
+    }
+
+    .toast.out {
+      animation: toast-out .3s ease forwards;
+    }
+
+    .toast-icon {
+      font-size: 20px;
+    }
+
+    @keyframes toast-in {
+      to {
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes toast-out {
+      to {
+        transform: translateX(120%);
+        opacity: 0;
+      }
+    }
+
+    /* ─── Header ─── */
     header {
       display: flex;
       justify-content: space-between;
@@ -64,14 +134,13 @@
       letter-spacing: .14em;
       text-transform: uppercase;
       color: var(--copper-light);
-      margin: 0 0 6px;
+      margin-bottom: 6px;
     }
 
     h1 {
       font-family: var(--font-display);
       font-size: 26px;
       font-weight: 700;
-      margin: 0;
       letter-spacing: .01em;
     }
 
@@ -99,7 +168,7 @@
       height: 9px;
       border-radius: 50%;
       background: #555;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04);
+      transition: background .3s, box-shadow .3s;
     }
 
     .dot.connecting {
@@ -121,11 +190,11 @@
 
       0%,
       100% {
-        opacity: 1;
+        opacity: 1
       }
 
       50% {
-        opacity: .35;
+        opacity: .35
       }
     }
 
@@ -145,6 +214,7 @@
       font-size: 11px;
       cursor: pointer;
       margin-top: 6px;
+      transition: border-color .2s, color .2s;
     }
 
     .gear-btn:hover {
@@ -152,7 +222,7 @@
       color: var(--copper-light);
     }
 
-    /* ---------- Settings panel ---------- */
+    /* ─── Settings ─── */
     #settings {
       display: none;
       background: var(--panel);
@@ -186,6 +256,7 @@
       border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 12.5px;
+      transition: border-color .2s;
     }
 
     #settings input:focus {
@@ -200,23 +271,7 @@
       margin-top: 4px;
     }
 
-    .settings-note {
-      grid-column: 1/-1;
-      font-size: 11px;
-      color: var(--amber);
-      background: rgba(255, 178, 56, 0.08);
-      border: 1px solid rgba(255, 178, 56, 0.3);
-      border-radius: 7px;
-      padding: 8px 12px;
-      line-height: 1.5;
-    }
-
-    .settings-note.info {
-      color: var(--text-dim);
-      background: rgba(139, 147, 160, 0.08);
-      border-color: var(--border);
-    }
-
+    /* ─── Buttons ─── */
     button.primary {
       background: linear-gradient(180deg, var(--copper-light), var(--copper));
       border: none;
@@ -228,16 +283,25 @@
       cursor: pointer;
       font-size: 13px;
       letter-spacing: .02em;
+      transition: filter .15s, transform .12s, box-shadow .15s;
     }
 
     button.primary:hover {
-      filter: brightness(1.08);
+      filter: brightness(1.12);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(201, 131, 79, 0.4);
+    }
+
+    button.primary:active {
+      transform: translateY(0);
     }
 
     button.primary:disabled {
       opacity: .4;
       cursor: not-allowed;
       filter: none;
+      transform: none;
+      box-shadow: none;
     }
 
     button.ghost {
@@ -249,6 +313,7 @@
       cursor: pointer;
       font-family: var(--font-display);
       font-size: 13px;
+      transition: border-color .2s, color .2s;
     }
 
     button.ghost:hover {
@@ -256,7 +321,7 @@
       color: var(--text);
     }
 
-    /* ---------- Main grid ---------- */
+    /* ─── Main grid ─── */
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1.1fr;
@@ -264,19 +329,50 @@
       margin-bottom: 16px;
     }
 
-    @media (max-width: 820px) {
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
       .grid {
         grid-template-columns: 1fr;
       }
     }
 
+    /* ─── Panel ─── */
     .panel {
-      background: var(--panel);
+      background: rgba(22, 27, 34, 0.85);
+      backdrop-filter: blur(12px);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       padding: 18px;
       position: relative;
       overflow: hidden;
+      transition: border-color .3s, box-shadow .3s, transform .2s;
+    }
+
+    .panel:hover {
+      border-color: rgba(201, 131, 79, 0.35);
+      box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+      transform: translateY(-1px);
+    }
+
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(201, 131, 79, 0.4), transparent);
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .panel:hover::before {
+      opacity: 1;
     }
 
     .panel-title {
@@ -285,7 +381,7 @@
       text-transform: uppercase;
       letter-spacing: .1em;
       color: var(--text-dim);
-      margin: 0 0 14px;
+      margin-bottom: 14px;
     }
 
     .panel-subtitle {
@@ -299,7 +395,7 @@
       padding-top: 14px;
     }
 
-    /* Silo */
+    /* ─── Silo ─── */
     .silo-body {
       display: flex;
       gap: 18px;
@@ -319,6 +415,7 @@
       font-size: 30px;
       font-weight: 700;
       line-height: 1;
+      transition: color .5s;
     }
 
     .readout .unit {
@@ -338,13 +435,32 @@
 
     svg#siloSvg {
       flex-shrink: 0;
+      filter: drop-shadow(0 0 8px rgba(201, 131, 79, 0.2));
     }
 
     #siloFill {
-      transition: y 0.6s ease, height 0.6s ease;
+      transition: y .6s ease, height .6s ease;
     }
 
-    /* LED panel */
+    /* ─── Silo wave animation ─── */
+    #siloWave {
+      animation: silo-wave 2s ease-in-out infinite;
+      transform-origin: 35px 0;
+    }
+
+    @keyframes silo-wave {
+
+      0%,
+      100% {
+        d: path("M4,0 Q16,-3 28,0 Q40,3 62,0 L62,8 Q40,5 28,8 Q16,11 4,8 Z")
+      }
+
+      50% {
+        d: path("M4,0 Q16,3 28,0 Q40,-3 62,0 L62,8 Q40,3 28,8 Q16,5 4,8 Z")
+      }
+    }
+
+    /* ─── LED Panel ─── */
     .led-list {
       display: flex;
       flex-direction: column;
@@ -361,7 +477,7 @@
       width: 22px;
       height: 22px;
       border-radius: 50%;
-      background: #2a2f37;
+      background: #1a1f27;
       border: 1px solid var(--border);
       flex-shrink: 0;
       transition: box-shadow .3s, background .3s;
@@ -369,24 +485,24 @@
 
     .led.on-red {
       background: var(--red);
-      box-shadow: 0 0 16px 2px var(--red);
+      box-shadow: 0 0 20px 5px rgba(255, 90, 90, 0.5), inset 0 0 8px rgba(255, 150, 150, 0.3);
     }
 
     .led.on-green {
       background: var(--green);
-      box-shadow: 0 0 16px 2px var(--green);
+      box-shadow: 0 0 20px 5px rgba(62, 207, 110, 0.5), inset 0 0 8px rgba(100, 255, 150, 0.3);
     }
 
     .led.on-amber {
       background: var(--amber);
-      box-shadow: 0 0 16px 2px var(--amber);
-      animation: pulse 0.8s infinite;
+      box-shadow: 0 0 20px 5px rgba(255, 178, 56, 0.5), inset 0 0 8px rgba(255, 220, 100, 0.3);
+      animation: pulse .8s infinite;
     }
 
     .led.on-buzzer {
       background: var(--red);
-      box-shadow: 0 0 16px 2px var(--red);
-      animation: pulse 0.4s infinite;
+      box-shadow: 0 0 20px 5px rgba(255, 90, 90, 0.5);
+      animation: pulse .4s infinite;
     }
 
     .led-text .name {
@@ -400,7 +516,7 @@
       margin-top: 2px;
     }
 
-    /* Controls */
+    /* ─── Controls ─── */
     .duration-row {
       display: flex;
       align-items: center;
@@ -417,6 +533,12 @@
       border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 13px;
+      transition: border-color .2s;
+    }
+
+    .duration-row input:focus {
+      outline: none;
+      border-color: var(--copper);
     }
 
     #feedBtn {
@@ -429,6 +551,8 @@
       opacity: .4;
       cursor: not-allowed;
       filter: none;
+      transform: none;
+      box-shadow: none;
     }
 
     .progress-track {
@@ -442,8 +566,9 @@
     .progress-fill {
       height: 100%;
       width: 0%;
-      background: var(--amber);
+      background: linear-gradient(90deg, var(--copper), var(--copper-light));
       transition: width .1s linear;
+      border-radius: 3px;
     }
 
     .trigger-info {
@@ -457,13 +582,13 @@
       font-weight: 600;
     }
 
-    /* Serial log */
+    /* ─── Log ─── */
     .log-panel {
       margin-top: 4px;
     }
 
     .log-box {
-      background: #0d0f13;
+      background: #06080d;
       border: 1px solid var(--border);
       border-radius: 8px;
       height: 190px;
@@ -489,15 +614,15 @@
     }
 
     .log-box::-webkit-scrollbar {
-      width: 8px;
+      width: 6px;
     }
 
     .log-box::-webkit-scrollbar-thumb {
-      background: #333;
+      background: #2d3540;
       border-radius: 4px;
     }
 
-    /* Schedule / clock panel */
+    /* ─── Schedule ─── */
     .schedule-panel {
       display: flex;
       align-items: center;
@@ -541,6 +666,7 @@
       padding: 8px 16px;
       background: var(--panel-2);
       min-width: 64px;
+      transition: border-color .2s, background .2s;
     }
 
     .chip .time {
@@ -565,10 +691,7 @@
       background: rgba(201, 131, 79, 0.14);
     }
 
-    .chip.next .time {
-      color: var(--copper-light);
-    }
-
+    .chip.next .time,
     .chip.next .state {
       color: var(--copper-light);
     }
@@ -590,6 +713,12 @@
       border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 12.5px;
+      transition: border-color .2s;
+    }
+
+    .schedule-editor input:focus {
+      outline: none;
+      border-color: var(--copper);
     }
 
     .sync-note {
@@ -604,12 +733,274 @@
       font-size: 11px;
       margin-top: 26px;
     }
+
+    /* ══════════════════════════════════════════════════
+       FISH TANK PANEL
+    ══════════════════════════════════════════════════ */
+    .fish-tank-panel {
+      background: rgba(8, 18, 38, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(56, 189, 248, 0.2);
+      border-radius: 16px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 16px;
+      transition: border-color .5s, box-shadow .5s;
+    }
+
+    .fish-tank-panel.glow-green {
+      border-color: rgba(62, 207, 110, 0.45);
+      box-shadow: 0 0 50px rgba(62, 207, 110, 0.12);
+    }
+
+    .fish-tank-panel.glow-amber {
+      border-color: rgba(255, 178, 56, 0.45);
+      box-shadow: 0 0 50px rgba(255, 178, 56, 0.12);
+    }
+
+    .fish-tank-panel.glow-red {
+      border-color: rgba(255, 90, 90, 0.55);
+      box-shadow: 0 0 60px rgba(255, 90, 90, 0.18);
+    }
+
+    .fish-tank-panel.glow-blue {
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 0 60px rgba(56, 189, 248, 0.15);
+    }
+
+    .fish-tank-panel .panel-title {
+      color: var(--blue);
+      position: relative;
+      z-index: 5;
+    }
+
+    /* Status badge */
+    .fish-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-display);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 5;
+      border: 1px solid transparent;
+      transition: background .4s, color .4s, border-color .4s;
+    }
+
+    .fish-status-badge.state-happy {
+      background: rgba(62, 207, 110, 0.15);
+      color: var(--green);
+      border-color: rgba(62, 207, 110, 0.35);
+    }
+
+    .fish-status-badge.state-critical {
+      background: rgba(255, 178, 56, 0.15);
+      color: var(--amber);
+      border-color: rgba(255, 178, 56, 0.35);
+    }
+
+    .fish-status-badge.state-empty {
+      background: rgba(255, 90, 90, 0.15);
+      color: var(--red);
+      border-color: rgba(255, 90, 90, 0.35);
+      animation: badge-pulse 1s infinite;
+    }
+
+    .fish-status-badge.state-eating {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--blue);
+      border-color: rgba(56, 189, 248, 0.35);
+    }
+
+    @keyframes badge-pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .55
+      }
+    }
+
+    /* Tank wrapper */
+    .tank-wrapper {
+      position: relative;
+      width: 100%;
+      height: 260px;
+      border-radius: 12px;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    /* Canvas fills the tank */
+    #tankCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+    }
+
+    /* Glassmorphism overlay gradient */
+    .tank-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(180deg, rgba(12, 30, 58, 0) 70%, rgba(5, 14, 28, 0.8) 100%);
+      pointer-events: none;
+      z-index: 6;
+      border-radius: 12px;
+    }
+
+    /* Ripple */
+    .ripple-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid rgba(56, 189, 248, 0.6);
+      pointer-events: none;
+      z-index: 15;
+      animation: ripple-expand .8s ease-out forwards;
+    }
+
+    @keyframes ripple-expand {
+      0% {
+        width: 0;
+        height: 0;
+        opacity: .9;
+        transform: translate(-50%, -50%) scale(1);
+      }
+
+      100% {
+        width: 80px;
+        height: 80px;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1);
+      }
+    }
+
+    /* Hunger speech bubble */
+    .hunger-bubble {
+      position: absolute;
+      background: rgba(220, 40, 40, 0.9);
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 10px;
+      z-index: 20;
+      pointer-events: none;
+      white-space: nowrap;
+      animation: bubble-float 2s ease-in-out infinite;
+      box-shadow: 0 4px 20px rgba(255, 90, 90, 0.5);
+    }
+
+    .hunger-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 14px;
+      border: 6px solid transparent;
+      border-top-color: rgba(220, 40, 40, 0.9);
+      border-bottom: 0;
+    }
+
+    @keyframes bubble-float {
+
+      0%,
+      100% {
+        transform: translateY(0)
+      }
+
+      50% {
+        transform: translateY(-5px)
+      }
+    }
+
+    /* Tank info bar */
+    .tank-info-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      position: relative;
+      z-index: 5;
+    }
+
+    .tank-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 12px;
+      transition: background .2s, border-color .2s;
+    }
+
+    .tank-stat:hover {
+      background: rgba(255, 255, 255, 0.07);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .tank-stat .s-label {
+      color: var(--text-dim);
+      margin-right: 4px;
+    }
+
+    .tank-stat .s-val {
+      font-family: var(--font-display);
+      font-weight: 600;
+      transition: color .5s;
+    }
+
+    .tank-stat .s-hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-left: 2px;
+    }
+
+    /* Number counter pop */
+    @keyframes num-pop {
+      0% {
+        transform: scale(1)
+      }
+
+      40% {
+        transform: scale(1.25)
+      }
+
+      100% {
+        transform: scale(1)
+      }
+    }
+
+    .num-pop {
+      animation: num-pop .35s cubic-bezier(.34, 1.56, .64, 1);
+    }
   </style>
 </head>
 
 <body>
-  <div class="wrap">
 
+  <!-- Background particle canvas -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- Toast container -->
+  <div id="toastContainer"></div>
+
+  <div class="wrap">
     <header>
       <div>
         <p class="eyebrow">Sistem Pemberi Pakan Otomatis</p>
@@ -646,26 +1037,54 @@
         <label>Topik Perintah</label>
         <input id="cfgTopicCmd" value="/feeder/command">
       </div>
-      <!-- <div>
-        <label>Jarak Penuh (cm) — mirror saja</label>
-        <input id="cfgDistFull" type="number" value="5">
-      </div>
-      <div>
-        <label>Jarak Kritis (cm) — mirror saja</label>
-        <input id="cfgDistCritical" type="number" value="12">
-      </div>
-      <div>
-        <label>Jarak Habis (cm) — mirror saja</label>
-        <input id="cfgDistEmpty" type="number" value="17">
-      </div> -->
       <div class="settings-actions">
         <button class="primary" id="connectBtn">Hubungkan</button>
         <button class="ghost" id="disconnectBtn">Putuskan</button>
       </div>
     </div>
 
-    <div class="grid">
+    <!-- ══════════════════════════════════════════════════
+       FISH TANK PANEL
+  ══════════════════════════════════════════════════ -->
+    <div class="fish-tank-panel glow-green" id="fishTankPanel">
+      <p class="panel-title">🐠 Kolam Virtual — Status Ikan</p>
+      <div class="fish-status-badge state-happy" id="fishStatusBadge">
+        <span id="fishStatusIcon">😊</span>
+        <span id="fishStatusText">Ikan kenyang &amp; bahagia</span>
+      </div>
 
+      <div class="tank-wrapper" id="tankWrapper">
+        <canvas id="tankCanvas"></canvas>
+        <div class="tank-overlay"></div>
+        <!-- Hunger bubble (shown when empty) -->
+        <div class="hunger-bubble" id="hungerBubble" style="display:none; top:22%; left:48%;">
+          🍽️ LAPAR!
+        </div>
+      </div>
+
+      <div class="tank-info-bar">
+        <div class="tank-stat">
+          <span class="s-label">Stok</span>
+          <span class="s-val" id="tankStockVal" style="color:var(--green)">--</span>
+          <span class="s-hint">%</span>
+        </div>
+        <div class="tank-stat">
+          <span class="s-label">Sensor</span>
+          <span class="s-val" id="tankDistVal">--</span>
+          <span class="s-hint">cm</span>
+        </div>
+        <div class="tank-stat">
+          <span class="s-label">Kondisi</span>
+          <span class="s-val" id="tankCondition" style="color:var(--text-dim)">Menunggu…</span>
+        </div>
+        <div class="tank-stat">
+          <span class="s-label">Katup</span>
+          <span class="s-val" id="tankFeedStatus">Diam</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
       <!-- SILO -->
       <div class="panel">
         <p class="panel-title">Level Wadah Pakan</p>
@@ -677,11 +1096,13 @@
             </clipPath>
             <g clip-path="url(#siloClip)">
               <rect id="siloFill" x="4" y="146" width="62" height="0" fill="url(#feedGrad)" />
+              <!-- Wave on top of silo fill -->
+              <path id="siloWave" d="" fill="rgba(255,200,100,0.25)" style="display:none" />
             </g>
             <defs>
               <linearGradient id="feedGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#e2a874" />
-                <stop offset="100%" stop-color="#c9834f" />
+                <stop id="siloGradTop" offset="0%" stop-color="#e2a874" />
+                <stop id="siloGradBot" offset="100%" stop-color="#c9834f" />
               </linearGradient>
             </defs>
           </svg>
@@ -727,7 +1148,7 @@
             <div class="led" id="ledBuzzer"></div>
             <div class="led-text">
               <div class="name">BUZZER</div>
-              <div class="desc">Bunyi beep saat stok habis (non-aktif saat memberi pakan)</div>
+              <div class="desc">Bunyi beep saat stok habis</div>
             </div>
           </div>
         </div>
@@ -749,10 +1170,9 @@
           Status: <b id="feedingStatus">Diam</b>
         </div>
       </div>
-
     </div>
 
-    <!-- JADWAL & WAKTU ALAT (sinkron dengan field waktu_alat + type:active_schedules dari firmware) -->
+    <!-- JADWAL -->
     <div class="panel" style="margin-bottom:16px;">
       <p class="panel-title">Jadwal Pakan Otomatis &amp; Waktu Alat (NTP)</p>
       <div class="schedule-panel">
@@ -762,17 +1182,16 @@
         </div>
         <div class="chip-row" id="scheduleChips"></div>
       </div>
-
       <p class="panel-subtitle">Kirim Jadwal Baru ke Alat (disimpan permanen di NVS, maks. 5 jadwal)</p>
       <div class="schedule-editor">
         <input id="cfgSchedule" value="" placeholder="cth: 07:00,12:00,19:00 (format HH:MM, pisah koma)">
         <button class="primary" id="sendScheduleBtn" disabled>Kirim Jadwal ke Alat</button>
       </div>
-      <div class="sync-note" id="scheduleSyncNote">Belum tersambung ke alat. Jadwal aktif akan otomatis dikirim
-        oleh alat begitu MQTT terhubung.</div>
+      <div class="sync-note" id="scheduleSyncNote">Belum tersambung ke alat. Jadwal aktif akan otomatis dikirim oleh
+        alat begitu MQTT terhubung.</div>
     </div>
 
-    <!-- SERIAL LOG -->
+    <!-- LOG -->
     <div class="panel log-panel">
       <p class="panel-title">Log MQTT</p>
       <div class="log-box" id="logBox">
@@ -784,10 +1203,626 @@
   </div>
 
   <script>
+    /* ══════════════════════════════════════════════════════════════════
+       BACKGROUND PARTICLE CANVAS
+    ══════════════════════════════════════════════════════════════════ */
+    (function () {
+      const c = document.getElementById('bg-canvas');
+      const ctx = c.getContext('2d');
+      let W, H, pts = [];
+      function resize() {
+        W = c.width = window.innerWidth;
+        H = c.height = window.innerHeight;
+      }
+      function init() {
+        pts = [];
+        for (let i = 0; i < 55; i++) {
+          pts.push({
+            x: Math.random() * W, y: Math.random() * H,
+            vx: (Math.random() - .5) * .25, vy: (Math.random() - .5) * .25,
+            r: 1 + Math.random() * 2,
+            a: Math.random()
+          });
+        }
+      }
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+        pts.forEach(p => {
+          p.x += p.vx; p.y += p.vy;
+          if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+          if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(56,189,248,${p.a * .4})`;
+          ctx.fill();
+        });
+        // Connection lines
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < 130) {
+              ctx.beginPath();
+              ctx.moveTo(pts[i].x, pts[i].y);
+              ctx.lineTo(pts[j].x, pts[j].y);
+              ctx.strokeStyle = `rgba(56,189,248,${(1 - d / 130) * .06})`;
+              ctx.lineWidth = .5;
+              ctx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(draw);
+      }
+      window.addEventListener('resize', () => { resize(); init(); });
+      resize(); init(); draw();
+    })();
+
+    /* ══════════════════════════════════════════════════════════════════
+       TOAST NOTIFICATION
+    ══════════════════════════════════════════════════════════════════ */
+    function showToast(icon, msg, color) {
+      const wrap = document.getElementById('toastContainer');
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.style.borderLeftColor = color || 'var(--blue)';
+      t.style.borderLeftWidth = '3px';
+      t.innerHTML = `<span class="toast-icon">${icon}</span><span>${msg}</span>`;
+      wrap.appendChild(t);
+      setTimeout(() => {
+        t.classList.add('out');
+        t.addEventListener('animationend', () => t.remove());
+      }, 3200);
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       ANIMATED NUMBER COUNTER
+    ══════════════════════════════════════════════════════════════════ */
+    function animateCount(el, from, to, unit = '') {
+      const dur = 600, step = 16;
+      const diff = to - from;
+      const steps = dur / step;
+      let cur = 0;
+      el.classList.remove('num-pop');
+      void el.offsetWidth; // reflow
+      el.classList.add('num-pop');
+      const iv = setInterval(() => {
+        cur++;
+        const val = Math.round(from + (diff * (cur / steps)));
+        el.textContent = val;
+        if (cur >= steps) { el.textContent = to; clearInterval(iv); }
+      }, step);
+    }
+    let prevStock = null;
+
+    /* ══════════════════════════════════════════════════════════════════
+       FISH TANK CANVAS ENGINE
+    ══════════════════════════════════════════════════════════════════ */
+    const tankCanvas = document.getElementById('tankCanvas');
+    const ctx2 = tankCanvas.getContext('2d');
+    const tankWrapper = document.getElementById('tankWrapper');
+
+    let TW, TH;
+    function resizeTank() {
+      TW = tankCanvas.width = tankWrapper.clientWidth;
+      TH = tankCanvas.height = tankWrapper.clientHeight;
+    }
+    window.addEventListener('resize', resizeTank);
+    resizeTank();
+
+    // ── Fish objects ──
+    const FISH_STATE = { happy: 0, critical: 1, empty: 2, eating: 3 };
+    let currentState = FISH_STATE.happy;
+    let prevFishState = -1;
+
+    // Main fish
+    const mainFish = {
+      x: 100, y: TH / 2,
+      vx: 1.2, vy: 0,
+      dir: 1,
+      tailAngle: 0,
+      blinkTimer: 0,
+      blinkOpen: true,
+      mouthOpen: 0,
+      color: '#f0903c',
+      eyeColor: '#1a1a2e',
+      scale: 1,
+      wobble: 0,
+      wobbleV: 0,
+      panicTimer: 0,
+      targetX: 200, targetY: 120,
+    };
+
+    // Small companion fish
+    const smallFish = [
+      { x: 300, y: 80, vx: .8, vy: 0, dir: 1, tailAngle: 0, color: '#38bdf8', eyeColor: '#0a2a3a', scale: .55, blinkTimer: 120, blinkOpen: true, wobble: 0, wobbleV: 0 },
+      { x: 500, y: 170, vx: -.7, vy: 0, dir: -1, tailAngle: 0, color: '#a78bfa', eyeColor: '#1a0a3a', scale: .45, blinkTimer: 80, blinkOpen: true, wobble: 0, wobbleV: 0 },
+    ];
+
+    // Bubbles
+    const bubbles = [];
+    for (let i = 0; i < 12; i++) bubbles.push({
+      x: 30 + Math.random() * TW * .9,
+      y: TH * (0.4 + Math.random() * .5),
+      r: 2 + Math.random() * 5,
+      speed: .3 + Math.random() * .5,
+      wobble: Math.random() * Math.PI * 2,
+    });
+
+    // Seagrass
+    const seagrass = [
+      { x: .06, h: 60, phase: 0, speed: 1.3 },
+      { x: .12, h: 40, phase: .5, speed: 1.1 },
+      { x: .20, h: 50, phase: 1.0, speed: 1.4 },
+      { x: .78, h: 45, phase: 1.5, speed: 1.2 },
+      { x: .86, h: 65, phase: 2.0, speed: 1.0 },
+      { x: .93, h: 38, phase: 2.5, speed: 1.6 },
+    ];
+
+    // Food pellets
+    const pellets = [];
+    let pelletSpawnTimer = 0;
+
+    // Ripple rings (canvas ripples)
+    const ripples = [];
+
+    // Click ripple
+    tankWrapper.addEventListener('click', (e) => {
+      const rect = tankWrapper.getBoundingClientRect();
+      const rx = e.clientX - rect.left;
+      const ry = e.clientY - rect.top;
+      ripples.push({ x: rx, y: ry, r: 0, alpha: 1 });
+    });
+
+    /* ── Draw one fish ── */
+    function drawFish(f, state) {
+      ctx2.save();
+      ctx2.translate(f.x, f.y + Math.sin(f.wobble) * 3);
+      if (f.dir < 0) ctx2.scale(-1, 1);
+      const s = f.scale;
+
+      // Tail
+      ctx2.save();
+      ctx2.translate(s * 34, 0);
+      ctx2.rotate(f.tailAngle);
+      ctx2.beginPath();
+      ctx2.moveTo(0, 0);
+      ctx2.lineTo(s * 22, -s * 14);
+      ctx2.lineTo(s * 22, s * 14);
+      ctx2.closePath();
+      ctx2.fillStyle = shadeColor(f.color, -25);
+      ctx2.fill();
+      ctx2.restore();
+
+      // Body
+      ctx2.beginPath();
+      ctx2.ellipse(0, 0, s * 34, s * 20, 0, 0, Math.PI * 2);
+      const bodyGrad = ctx2.createRadialGradient(-s * 10, -s * 8, s * 2, 0, 0, s * 34);
+      bodyGrad.addColorStop(0, lightenColor(f.color, 40));
+      bodyGrad.addColorStop(1, f.color);
+      ctx2.fillStyle = bodyGrad;
+      ctx2.fill();
+
+      // Belly sheen
+      ctx2.beginPath();
+      ctx2.ellipse(-s * 5, s * 8, s * 16, s * 9, -0.2, 0, Math.PI * 2);
+      ctx2.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx2.fill();
+
+      // Fin
+      ctx2.beginPath();
+      ctx2.moveTo(-s * 5, -s * 18);
+      ctx2.quadraticCurveTo(s * 5, -s * 28, s * 14, -s * 14);
+      ctx2.quadraticCurveTo(s * 2, -s * 20, -s * 5, -s * 18);
+      ctx2.fillStyle = shadeColor(f.color, 10);
+      ctx2.globalAlpha = .85;
+      ctx2.fill();
+      ctx2.globalAlpha = 1;
+
+      // Scale lines
+      ctx2.strokeStyle = 'rgba(0,0,0,0.1)';
+      ctx2.lineWidth = s * .8;
+      for (let i = 0; i < 3; i++) {
+        ctx2.beginPath();
+        ctx2.arc((-s * 10) + i * s * 12, s * 3, s * 10, 0.3, Math.PI - .3);
+        ctx2.stroke();
+      }
+
+      // Eye
+      const ex = -s * 22, ey = -s * 5;
+      ctx2.beginPath();
+      ctx2.arc(ex, ey, s * 7, 0, Math.PI * 2);
+      ctx2.fillStyle = 'white';
+      ctx2.fill();
+      if (f.blinkOpen) {
+        ctx2.beginPath();
+        ctx2.arc(ex + s * 1.5, ey + s, s * 4.5, 0, Math.PI * 2);
+        ctx2.fillStyle = f.eyeColor;
+        ctx2.fill();
+        ctx2.beginPath();
+        ctx2.arc(ex + s * 2.5, ey - .5, s * 1.5, 0, Math.PI * 2);
+        ctx2.fillStyle = 'white';
+        ctx2.fill();
+        // Scared pupils when empty
+        if (state === FISH_STATE.empty && s > .8) {
+          ctx2.beginPath();
+          ctx2.arc(ex + s * 1.5, ey + s, s * 4.5, 0, Math.PI * 2);
+          ctx2.fillStyle = 'rgba(255,0,0,0.15)';
+          ctx2.fill();
+        }
+      } else {
+        // Blink: closed eye line
+        ctx2.beginPath();
+        ctx2.moveTo(ex - s * 5, ey);
+        ctx2.quadraticCurveTo(ex, ey + s * 3, ex + s * 5, ey);
+        ctx2.strokeStyle = '#888';
+        ctx2.lineWidth = s * 1.5;
+        ctx2.stroke();
+      }
+
+      // Mouth
+      const mx = -s * 30, my = s * 3;
+      if (state === FISH_STATE.empty || state === FISH_STATE.eating || (f.mouthOpen && f.mouthOpen > .3)) {
+        // Open mouth (O-shape, hungry/eating)
+        ctx2.beginPath();
+        ctx2.arc(mx, my + s * 2, s * (3 + f.mouthOpen * 4), 0, Math.PI * 2);
+        ctx2.fillStyle = '#b04010';
+        ctx2.fill();
+        ctx2.beginPath();
+        ctx2.arc(mx, my + s * 2, s * (2 + f.mouthOpen * 3), 0, Math.PI * 2);
+        ctx2.fillStyle = '#6a1a04';
+        ctx2.fill();
+      } else {
+        // Happy smile
+        ctx2.beginPath();
+        ctx2.moveTo(mx - s * 4, my);
+        ctx2.quadraticCurveTo(mx, my + s * 5, mx + s * 4, my);
+        ctx2.strokeStyle = '#b04010';
+        ctx2.lineWidth = s * 2;
+        ctx2.lineCap = 'round';
+        ctx2.stroke();
+      }
+
+      ctx2.restore();
+    }
+
+    /* ── Draw coral ── */
+    function drawCoral(x, y, h, color) {
+      const branches = 4;
+      for (let i = 0; i < branches; i++) {
+        const angle = (-Math.PI / 2) + (i - (branches - 1) / 2) * 0.45;
+        ctx2.beginPath();
+        ctx2.moveTo(x, y);
+        const bx = x + Math.cos(angle) * h * .8;
+        const by = y + Math.sin(angle) * h * .8;
+        ctx2.quadraticCurveTo(x + Math.cos(angle + .3) * h * .5, y + Math.sin(angle + .3) * h * .5, bx, by);
+        ctx2.strokeStyle = color;
+        ctx2.lineWidth = 4 - i * .5;
+        ctx2.lineCap = 'round';
+        ctx2.stroke();
+        // Tip ball
+        ctx2.beginPath();
+        ctx2.arc(bx, by, 4, 0, Math.PI * 2);
+        ctx2.fillStyle = lightenColor(color, 30);
+        ctx2.fill();
+      }
+    }
+
+    /* ── Main render loop ── */
+    let frame = 0;
+    let eatMouthTimer = 0;
+    function renderTank() {
+      frame++;
+      resizeTank();
+      ctx2.clearRect(0, 0, TW, TH);
+
+      // ── Background gradient ──
+      const bg = ctx2.createLinearGradient(0, 0, 0, TH);
+      bg.addColorStop(0, '#0c1e3a');
+      bg.addColorStop(.6, '#0a1828');
+      bg.addColorStop(1, '#060f1c');
+      ctx2.fillStyle = bg;
+      ctx2.fillRect(0, 0, TW, TH);
+
+      // Light shafts from surface
+      for (let i = 0; i < 4; i++) {
+        const sx = TW * (.15 + i * .22);
+        const alpha = .025 + .01 * Math.sin(frame * .012 + i);
+        const lg = ctx2.createLinearGradient(sx, 0, sx + 30, TH * .8);
+        lg.addColorStop(0, `rgba(56,189,248,${alpha})`);
+        lg.addColorStop(1, 'rgba(56,189,248,0)');
+        ctx2.beginPath();
+        ctx2.moveTo(sx, 0);
+        ctx2.lineTo(sx + 40, TH * .8);
+        ctx2.lineTo(sx + 15, TH * .8);
+        ctx2.lineTo(sx - 12, 0);
+        ctx2.closePath();
+        ctx2.fillStyle = lg;
+        ctx2.fill();
+      }
+
+      // ── Sand floor ──
+      const sandY = TH - 28;
+      ctx2.beginPath();
+      ctx2.moveTo(0, sandY);
+      for (let x = 0; x <= TW; x += 20) {
+        ctx2.lineTo(x, sandY + Math.sin(x * .05 + frame * .008) * 3);
+      }
+      ctx2.lineTo(TW, TH); ctx2.lineTo(0, TH); ctx2.closePath();
+      const sandG = ctx2.createLinearGradient(0, sandY, 0, TH);
+      sandG.addColorStop(0, '#3a2a18');
+      sandG.addColorStop(1, '#1f1508');
+      ctx2.fillStyle = sandG;
+      ctx2.fill();
+      // Sand speckles
+      ctx2.fillStyle = 'rgba(255,200,100,0.12)';
+      for (let i = 0; i < 30; i++) {
+        ctx2.beginPath();
+        ctx2.arc(TW * ((i * .37 + .05) % 1), sandY + 4 + ((i * 7) % 12), 1.5, 0, Math.PI * 2);
+        ctx2.fill();
+      }
+
+      // ── Seagrass ──
+      const t = frame * .02;
+      seagrass.forEach(g => {
+        const bx = g.x * TW;
+        const sway = Math.sin(t * g.speed + g.phase) * 8;
+        const segments = 5;
+        ctx2.beginPath();
+        ctx2.moveTo(bx, sandY);
+        for (let i = 1; i <= segments; i++) {
+          const frac = i / segments;
+          ctx2.lineTo(bx + sway * frac, sandY - g.h * frac);
+        }
+        const gg = ctx2.createLinearGradient(bx, sandY, bx, sandY - g.h);
+        gg.addColorStop(0, '#0d3020');
+        gg.addColorStop(1, '#1e6040');
+        ctx2.strokeStyle = gg;
+        ctx2.lineWidth = 6 * (1 - .3 * (g.h / 65));
+        ctx2.lineCap = 'round';
+        ctx2.stroke();
+      });
+
+      // ── Corals ──
+      drawCoral(TW * .08, sandY, 35, '#e63a6a');
+      drawCoral(TW * .16, sandY, 28, '#e63a6a');
+      drawCoral(TW * .88, sandY, 40, '#f97316');
+      drawCoral(TW * .94, sandY, 25, '#a855f7');
+
+      // ── Bubbles ──
+      bubbles.forEach(b => {
+        b.wobble += .04;
+        b.y -= b.speed;
+        if (b.y < -10) { b.y = sandY - 10; b.x = 30 + Math.random() * (TW - 60); }
+        const bx = b.x + Math.sin(b.wobble) * 2.5;
+        ctx2.beginPath();
+        ctx2.arc(bx, b.y, b.r, 0, Math.PI * 2);
+        ctx2.fillStyle = 'rgba(56,189,248,0.18)';
+        ctx2.fill();
+        ctx2.strokeStyle = 'rgba(56,189,248,0.5)';
+        ctx2.lineWidth = .8;
+        ctx2.stroke();
+        // Highlight
+        ctx2.beginPath();
+        ctx2.arc(bx - b.r * .3, b.y - b.r * .3, b.r * .35, 0, Math.PI * 2);
+        ctx2.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx2.fill();
+      });
+
+      // ── Food pellets ──
+      if (currentState === FISH_STATE.eating) {
+        pelletSpawnTimer++;
+        if (pelletSpawnTimer % 18 === 0) {
+          pellets.push({
+            x: TW * (.15 + Math.random() * .7),
+            y: 0,
+            vy: 1.2 + Math.random() * .8,
+            r: 3 + Math.random() * 3,
+            rot: Math.random() * Math.PI * 2
+          });
+        }
+      }
+      for (let i = pellets.length - 1; i >= 0; i--) {
+        const p = pellets[i];
+        p.y += p.vy;
+        p.rot += .05;
+        if (p.y > TH) { pellets.splice(i, 1); continue; }
+        ctx2.save();
+        ctx2.translate(p.x, p.y);
+        ctx2.rotate(p.rot);
+        const pg = ctx2.createRadialGradient(-p.r * .3, -p.r * .3, p.r * .1, 0, 0, p.r);
+        pg.addColorStop(0, '#e2a874');
+        pg.addColorStop(1, '#a05020');
+        ctx2.beginPath();
+        ctx2.arc(0, 0, p.r, 0, Math.PI * 2);
+        ctx2.fillStyle = pg;
+        ctx2.fill();
+        ctx2.restore();
+      }
+
+      // ── Update & draw small fish ──
+      smallFish.forEach((f, fi) => {
+        // Simple bounce swim
+        f.x += f.vx * (currentState === FISH_STATE.empty ? 1.8 : 1);
+        f.y += f.vy;
+        f.wobble += .04;
+        const margin = 60;
+        if (f.x < margin) { f.dir = 1; f.vx = Math.abs(f.vx); }
+        if (f.x > TW - margin) { f.dir = -1; f.vx = -Math.abs(f.vx); }
+        // Drift vertically
+        f.vy += (Math.random() - .5) * .04;
+        f.vy *= 0.95;
+        f.y = Math.max(30, Math.min(sandY - 40, f.y));
+        // Tail
+        const speed2 = currentState === FISH_STATE.empty ? .25 : .12;
+        f.tailAngle = Math.sin(frame * speed2 * 2 + fi * 2) * 0.4;
+        // Blink
+        f.blinkTimer--;
+        if (f.blinkTimer <= 0) { f.blinkOpen = !f.blinkOpen; f.blinkTimer = f.blinkOpen ? 100 + Math.random() * 120 : 6; }
+        f.mouthOpen = currentState === FISH_STATE.eating ? .5 + .5 * Math.sin(frame * .3) : 0;
+        drawFish(f, currentState);
+      });
+
+      // ── Update & draw main fish ──
+      {
+        const f = mainFish;
+        const speed = currentState === FISH_STATE.empty ? 2.2 : currentState === FISH_STATE.critical ? 1.6 : 1.0;
+        const maxY = sandY - 55;
+
+        if (currentState === FISH_STATE.eating) {
+          // Chase nearest pellet or swim in loops
+          if (pellets.length > 0) {
+            const nearest = pellets.reduce((a, b) => { const da = Math.abs(b.x - f.x) + Math.abs(b.y - f.y), db = Math.abs(a.x - f.x) + Math.abs(a.y - f.y); return da < db ? b : a; });
+            f.targetX = nearest.x; f.targetY = nearest.y;
+          } else {
+            f.targetX = TW / 2 + Math.cos(frame * .02) * TW * .25;
+            f.targetY = TH / 3 + Math.sin(frame * .03) * TH * .15;
+          }
+        } else if (currentState === FISH_STATE.empty) {
+          // Panic swimming — random darts
+          if (frame % 40 === 0) {
+            f.targetX = 40 + Math.random() * (TW - 80);
+            f.targetY = 40 + Math.random() * (maxY - 40);
+          }
+        } else if (currentState === FISH_STATE.critical) {
+          // Slow wandering near surface
+          f.targetX = TW * (.1 + .8 * (0.5 + 0.5 * Math.sin(frame * .008)));
+          f.targetY = TH * (.25 + .15 * Math.sin(frame * .012));
+        } else {
+          // Happy: gentle sinusoidal path
+          f.targetX = TW * (.08 + .84 * ((Math.sin(frame * .007) + 1) / 2));
+          f.targetY = TH * (.35 + .2 * Math.sin(frame * .011));
+        }
+
+        const dx = f.targetX - f.x, dy = f.targetY - f.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 2) {
+          f.vx += (dx / dist) * speed * .18;
+          f.vy += (dy / dist) * speed * .12;
+        }
+        f.vx *= 0.88; f.vy *= 0.88;
+        f.x += f.vx; f.y += f.vy;
+        f.x = Math.max(40, Math.min(TW - 40, f.x));
+        f.y = Math.max(25, Math.min(maxY, f.y));
+
+        // Direction
+        if (f.vx > .15) f.dir = 1;
+        else if (f.vx < -.15) f.dir = -1;
+
+        // Tail speed
+        const tSpeed = currentState === FISH_STATE.empty ? .32 : currentState === FISH_STATE.eating ? .28 : .14;
+        f.tailAngle = Math.sin(frame * tSpeed) * (currentState === FISH_STATE.empty ? 0.55 : 0.35);
+
+        // Wobble
+        f.wobble += .035;
+
+        // Blink
+        f.blinkTimer--;
+        if (f.blinkTimer <= 0) { f.blinkOpen = !f.blinkOpen; f.blinkTimer = f.blinkOpen ? 130 + Math.random() * 100 : 7; }
+
+        // Mouth animation (eating)
+        if (currentState === FISH_STATE.eating) {
+          f.mouthOpen = .5 + .5 * Math.sin(frame * .35);
+        } else if (currentState === FISH_STATE.empty) {
+          f.mouthOpen = .6 + .4 * Math.sin(frame * .4);
+        } else {
+          f.mouthOpen = 0;
+        }
+
+        drawFish(f, currentState);
+      }
+
+      // ── Ripple rings ──
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const rp = ripples[i];
+        rp.r += 2.5; rp.alpha -= .025;
+        if (rp.alpha <= 0) { ripples.splice(i, 1); continue; }
+        ctx2.beginPath();
+        ctx2.arc(rp.x, rp.y, rp.r, 0, Math.PI * 2);
+        ctx2.strokeStyle = `rgba(56,189,248,${rp.alpha})`;
+        ctx2.lineWidth = 1.5;
+        ctx2.stroke();
+      }
+
+      // ── Water surface wave at top ──
+      ctx2.beginPath();
+      ctx2.moveTo(0, 0);
+      for (let x = 0; x <= TW; x += 8) {
+        ctx2.lineTo(x, 8 + Math.sin(x * .025 + frame * .04) * 4 + Math.sin(x * .04 - frame * .03) * 2);
+      }
+      ctx2.lineTo(TW, 0); ctx2.closePath();
+      const wg = ctx2.createLinearGradient(0, 0, 0, 14);
+      wg.addColorStop(0, 'rgba(56,189,248,0.4)');
+      wg.addColorStop(1, 'rgba(56,189,248,0)');
+      ctx2.fillStyle = wg;
+      ctx2.fill();
+
+      requestAnimationFrame(renderTank);
+    }
+    renderTank();
+
+    /* ── Color helpers ── */
+    function shadeColor(hex, pct) {
+      const num = parseInt(hex.replace('#', ''), 16);
+      const r = Math.min(255, Math.max(0, (num >> 16) + pct));
+      const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + pct));
+      const b = Math.min(255, Math.max(0, (num & 0xff) + pct));
+      return `rgb(${r},${g},${b})`;
+    }
+    function lightenColor(hex, pct) { return shadeColor(hex, pct); }
+
+    /* ── Fish state manager ── */
+    const panel = document.getElementById('fishTankPanel');
+    const badge = document.getElementById('fishStatusBadge');
+    const fishIcon = document.getElementById('fishStatusIcon');
+    const fishText = document.getElementById('fishStatusText');
+    const hungerBubble = document.getElementById('hungerBubble');
+
+    const STATES = {
+      happy: { icon: '😊', text: 'Ikan kenyang & bahagia', badge: 'state-happy', glow: 'glow-green', toast: null },
+      critical: { icon: '😟', text: 'Stok kritis — ikan mulai gelisah!', badge: 'state-critical', glow: 'glow-amber', toast: ['⚠️', 'Stok pakan kritis!', 'var(--amber)'] },
+      empty: { icon: '😵', text: 'STOK HABIS — Ikan sangat kelaparan!', badge: 'state-empty', glow: 'glow-red', toast: ['🔴', 'Stok pakan HABIS! Segera isi ulang.', 'var(--red)'] },
+      eating: { icon: '🍽️', text: 'Sedang makan — katup terbuka!', badge: 'state-eating', glow: 'glow-blue', toast: ['🐠', 'Ikan sedang makan!', 'var(--blue)'] },
+    };
+
+    function setFishState(state) {
+      const s = STATES[state];
+      const prev = currentState;
+      currentState = FISH_STATE[state];
+
+      if (prevFishState === currentState) return;
+      prevFishState = currentState;
+
+      fishIcon.textContent = s.icon;
+      fishText.textContent = s.text;
+      badge.className = `fish-status-badge ${s.badge}`;
+      panel.className = `fish-tank-panel ${s.glow}`;
+      hungerBubble.style.display = state === 'empty' ? '' : 'none';
+
+      if (s.toast && prevFishState !== -1) showToast(...s.toast);
+    }
+
+    function updateFishFromStatus(stok, isFeeding, redLedOn) {
+      if (isFeeding) setFishState('eating');
+      else if (redLedOn || stok <= 5) setFishState('empty');
+      else if (stok <= 30) setFishState('critical');
+      else setFishState('happy');
+
+      // Update tank stats
+      const sv = document.getElementById('tankStockVal');
+      sv.style.color = stok <= 5 ? 'var(--red)' : stok <= 30 ? 'var(--amber)' : 'var(--green)';
+      if (stok !== undefined) sv.textContent = stok;
+      const cond = { eating: '🔵 Makan', empty: '🔴 Habis', critical: '🟡 Kritis', happy: '🟢 Penuh' };
+      document.getElementById('tankCondition').textContent = cond[Object.keys(FISH_STATE).find(k => FISH_STATE[k] === currentState)] || '—';
+      document.getElementById('tankFeedStatus').textContent = isFeeding ? '⚡ Membuka...' : 'Diam';
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       ORIGINAL MQTT + DASHBOARD LOGIC (UNCHANGED)
+    ══════════════════════════════════════════════════════════════════ */
     let client = null;
     let feedTimer = null;
-    let lastDeviceTime = null; // "HH:MM:SS" terakhir yang dikirim alat lewat field waktu_alat
-    let deviceSchedules = [];  // Jadwal yang DIKONFIRMASI tersimpan di NVS alat (dari pesan type: active_schedules)
+    let lastDeviceTime = null;
+    let deviceSchedules = [];
 
     const dot = document.getElementById('connDot');
     const connLabel = document.getElementById('connLabel');
@@ -823,119 +1858,91 @@
       const o = document.getElementById('ledOrange');
       const b = document.getElementById('ledBuzzer');
       r.className = 'led'; g.className = 'led'; o.className = 'led'; b.className = 'led';
-
-      if (isFeeding) {
-        // Sesuai firmware (triggerFeeding): saat katup terbuka, LED hijau aktif & buzzer dipaksa mati
-        g.className = 'led on-green';
-        return;
-      }
-
-      const distFull = parseFloat(document.getElementById('cfgDistFull').value) || 5;
-      const distCritical = parseFloat(document.getElementById('cfgDistCritical').value) || 12;
-      const distEmpty = parseFloat(document.getElementById('cfgDistEmpty').value) || 17;
-
-      if (distance >= distEmpty) {
-        r.className = 'led on-red';
-        b.className = 'led on-buzzer';
-      } else if (distance >= distCritical && distance < distEmpty) {
-        o.className = 'led on-amber';
-      } else if (distance <= distFull) {
-        g.className = 'led on-green';
-      }
-      // di antara distFull dan distCritical: kondisi aman, semua indikator mati
+      if (isFeeding) { g.className = 'led on-green'; return; }
+      const distFull = 5, distCritical = 12, distEmpty = 17;
+      if (distance >= distEmpty) { r.className = 'led on-red'; b.className = 'led on-buzzer'; }
+      else if (distance >= distCritical && distance < distEmpty) { o.className = 'led on-amber'; }
+      else if (distance <= distFull) { g.className = 'led on-green'; }
     }
 
     function updateSilo(stock) {
       const clamped = Math.max(0, Math.min(100, stock));
-      const maxH = 142;
-      const h = (clamped / 100) * maxH;
+      const h = (clamped / 100) * 142;
       const fill = document.getElementById('siloFill');
       fill.setAttribute('y', 146 - h);
       fill.setAttribute('height', h);
+      const t = document.getElementById('siloGradTop');
+      const bot = document.getElementById('siloGradBot');
+      if (stock <= 5) { t.setAttribute('stop-color', '#ff7070'); bot.setAttribute('stop-color', '#cc3030'); }
+      else if (stock <= 30) { t.setAttribute('stop-color', '#ffd070'); bot.setAttribute('stop-color', '#c08020'); }
+      else { t.setAttribute('stop-color', '#e2a874'); bot.setAttribute('stop-color', '#c9834f'); }
     }
 
-    // Merender chip jadwal berdasarkan jadwal YANG DIKONFIRMASI ALAT (deviceSchedules),
-    // bukan lagi dari input teks lokal — supaya selalu mencerminkan isi NVS firmware yang sebenarnya.
     function renderSchedule() {
       const chipRow = document.getElementById('scheduleChips');
       chipRow.innerHTML = '';
-
       if (deviceSchedules.length === 0) {
         chipRow.innerHTML = '<span style="font-size:11.5px;color:var(--text-dim);">Belum ada data jadwal dari alat.</span>';
         return;
       }
-
       let nowMinutes = null;
       if (lastDeviceTime && /^\d{2}:\d{2}/.test(lastDeviceTime)) {
         const [h, m] = lastDeviceTime.split(':').map(Number);
         nowMinutes = h * 60 + m;
       }
-
       let nextAssigned = false;
       deviceSchedules.forEach(t => {
         const parts = t.split(':').map(Number);
         const h = parts[0] || 0, m = parts[1] || 0;
-        const chipMinutes = h * 60 + m;
-
         const chip = document.createElement('div');
         chip.className = 'chip';
         let state = 'Terjadwal';
-
         if (nowMinutes !== null) {
-          if (chipMinutes < nowMinutes) {
-            chip.classList.add('past');
-            state = 'Selesai';
-          } else if (!nextAssigned) {
-            chip.classList.add('next');
-            state = 'Berikutnya';
-            nextAssigned = true;
-          }
+          if (h * 60 + m < nowMinutes) { chip.classList.add('past'); state = 'Selesai'; }
+          else if (!nextAssigned) { chip.classList.add('next'); state = 'Berikutnya'; nextAssigned = true; }
         }
-
-        const label = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        chip.innerHTML = `<div class="time">${label}</div><div class="state">${state}</div>`;
+        chip.innerHTML = `<div class="time">${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}</div><div class="state">${state}</div>`;
         chipRow.appendChild(chip);
       });
     }
 
-    // Dipanggil saat menerima pesan {"type":"active_schedules","schedules":[...]} dari publishCurrentSchedules()
-    // di firmware — ini adalah sumber kebenaran (source of truth) jadwal yang benar-benar tersimpan di NVS.
-    function applySchedules(schedulesArray) {
-      deviceSchedules = schedulesArray.slice(0, 5);
+    function applySchedules(arr) {
+      deviceSchedules = arr.slice(0, 5);
       document.getElementById('cfgSchedule').value = deviceSchedules.join(',');
-      scheduleSyncNote.textContent = 'Tersinkron dengan alat (NVS) • terakhir dikonfirmasi ' +
-        new Date().toLocaleTimeString('id-ID', { hour12: false });
+      scheduleSyncNote.textContent = 'Tersinkron dengan alat (NVS) • ' + new Date().toLocaleTimeString('id-ID', { hour12: false });
       scheduleSyncNote.style.color = 'var(--green)';
       renderSchedule();
     }
 
     function applyStatus(data) {
-      let distance = 0;
+      let distance = 0, stockPersen = undefined;
+
       if (typeof data.jarak_cm === 'number') {
         distance = data.jarak_cm;
         document.getElementById('distVal').textContent = data.jarak_cm;
+        document.getElementById('tankDistVal').textContent = data.jarak_cm;
       }
       if (typeof data.stok_persen === 'number') {
-        document.getElementById('stockVal').textContent = data.stok_persen;
-        updateSilo(data.stok_persen);
+        stockPersen = data.stok_persen;
+        // Animated counter
+        const sv = document.getElementById('stockVal');
+        const from = prevStock !== null ? prevStock : stockPersen;
+        if (from !== stockPersen) animateCount(sv, from, stockPersen);
+        else sv.textContent = stockPersen;
+        prevStock = stockPersen;
+        updateSilo(stockPersen);
       }
       if (typeof data.pemicu_terakhir === 'string') document.getElementById('lastTrigger').textContent = data.pemicu_terakhir;
 
-      // Field waktu_alat dikirim firmware dari updateLocalTime() lewat NTP (GMT+7 / WIB)
-      // Firmware mengirim string "NTP Error" saat getLocalTime() gagal (lihat updateLocalTime() di .ino)
       if (typeof data.waktu_alat === 'string') {
         const clockEl = document.getElementById('deviceClock');
         const noteEl = document.getElementById('deviceClockNote');
         if (data.waktu_alat === 'NTP Error') {
-          clockEl.textContent = '--:--:--';
-          clockEl.style.color = 'var(--red)';
-          noteEl.textContent = 'Alat belum tersinkron NTP';
-          noteEl.style.color = 'var(--red)';
+          clockEl.textContent = '--:--:--'; clockEl.style.color = 'var(--red)';
+          noteEl.textContent = 'Alat belum tersinkron NTP'; noteEl.style.color = 'var(--red)';
         } else {
-          clockEl.textContent = data.waktu_alat;
-          clockEl.style.color = '';
-          noteEl.textContent = 'Waktu Alat (NTP, WIB / GMT+7)';
-          noteEl.style.color = '';
+          clockEl.textContent = data.waktu_alat; clockEl.style.color = '';
+          noteEl.textContent = 'Waktu Alat (NTP, WIB / GMT+7)'; noteEl.style.color = '';
           lastDeviceTime = data.waktu_alat;
         }
         renderSchedule();
@@ -944,6 +1951,9 @@
       const feeding = !!data.sedang_pakan;
       document.getElementById('feedingStatus').textContent = feeding ? 'Sedang membuka katup (180°)...' : 'Diam';
       updateLEDs(distance, feeding);
+
+      const redLedOn = distance >= 17;
+      updateFishFromStatus(stockPersen !== undefined ? stockPersen : 100, feeding, redLedOn);
 
       if (!feeding) {
         feedBtn.disabled = (client === null || !client.connected);
@@ -956,67 +1966,42 @@
       const user = document.getElementById('cfgUser').value.trim();
       const pass = document.getElementById('cfgPass').value;
       const topicStatus = document.getElementById('cfgTopicStatus').value.trim();
-
       if (!host || !user || !pass) {
         setConn('offline', 'Isi broker/username/password dulu');
         log('Koneksi dibatalkan: broker, username, atau password masih kosong.', 'SYSTEM');
         return;
       }
-
       brokerLabel.textContent = host;
       setConn('connecting', 'Menghubungkan...');
-
-      // shiftr.io menerima koneksi WebSocket aman (wss) dari browser di port 443 default.
-      // Ini berbeda dari koneksi TCP mentah (mqtt_port 1883) yang dipakai firmware ESP32 (PubSubClient),
-      // tapi keduanya tetap terhubung ke broker shiftr.io yang sama sehingga bisa saling bertukar pesan.
       const url = `wss://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${host}`;
       client = mqtt.connect(url, { clientId: 'dashboard_' + Math.random().toString(16).slice(2, 10) });
-
       client.on('connect', () => {
         setConn('online', 'Terhubung');
         client.subscribe(topicStatus);
-        feedBtn.disabled = false;
-        sendScheduleBtn.disabled = false;
-        scheduleSyncNote.textContent = 'Menunggu alat mengirim jadwal tersimpan (otomatis setelah alat connect)...';
+        feedBtn.disabled = false; sendScheduleBtn.disabled = false;
+        scheduleSyncNote.textContent = 'Menunggu alat mengirim jadwal tersimpan...';
         scheduleSyncNote.style.color = 'var(--text-dim)';
         log('Terhubung ke broker dan subscribe ke ' + topicStatus, 'SYSTEM');
+        showToast('🟢', 'Terhubung ke broker MQTT!', 'var(--green)');
       });
-
       client.on('reconnect', () => setConn('connecting', 'Menyambung ulang...'));
-
-      client.on('close', () => {
-        setConn('offline', 'Terputus');
-        feedBtn.disabled = true;
-        sendScheduleBtn.disabled = true;
-      });
-
-      client.on('error', (err) => {
-        setConn('offline', 'Gagal terhubung');
-        log('Error: ' + err.message, 'SYSTEM');
-      });
-
+      client.on('close', () => { setConn('offline', 'Terputus'); feedBtn.disabled = true; sendScheduleBtn.disabled = true; });
+      client.on('error', (err) => { setConn('offline', 'Gagal terhubung'); log('Error: ' + err.message, 'SYSTEM'); });
       client.on('message', (topic, message) => {
         const text = message.toString();
         log(text, topic);
         try {
           const data = JSON.parse(text);
-          // Firmware mengirim dua bentuk pesan di topik status yang sama:
-          // 1) telemetri berkala (jarak_cm, stok_persen, sedang_pakan, pemicu_terakhir, waktu_alat)
-          // 2) konfirmasi jadwal { "type": "active_schedules", "schedules": [...] } dari publishCurrentSchedules()
-          if (data.type === 'active_schedules' && Array.isArray(data.schedules)) {
-            applySchedules(data.schedules);
-          } else {
-            applyStatus(data);
-          }
-        } catch (e) { /* pesan bukan JSON, abaikan parsing status */ }
+          if (data.type === 'active_schedules' && Array.isArray(data.schedules)) applySchedules(data.schedules);
+          else applyStatus(data);
+        } catch (e) { }
       });
     }
 
     function disconnect() {
       if (client) { client.end(true); client = null; }
       setConn('offline', 'Diputuskan manual');
-      feedBtn.disabled = true;
-      sendScheduleBtn.disabled = true;
+      feedBtn.disabled = true; sendScheduleBtn.disabled = true;
     }
 
     document.getElementById('connectBtn').addEventListener('click', connect);
@@ -1026,68 +2011,41 @@
       if (!client || !client.connected) return;
       const topicCmd = document.getElementById('cfgTopicCmd').value.trim();
       const duration = parseInt(document.getElementById('durationInput').value, 10) || 3000;
-
       const payload = JSON.stringify({ action: 'feed', duration });
       client.publish(topicCmd, payload);
       log(payload + '  →  dikirim ke ' + topicCmd, 'PUBLISH');
-
       feedBtn.disabled = true;
       document.getElementById('feedingStatus').textContent = 'Sedang membuka katup...';
       document.getElementById('lastTrigger').textContent = 'Dashboard MQTT (menunggu konfirmasi)';
-
       const start = Date.now();
       clearInterval(feedTimer);
       feedTimer = setInterval(() => {
         const pct = Math.min(100, ((Date.now() - start) / duration) * 100);
         progressFill.style.width = pct + '%';
-        if (pct >= 100) {
-          clearInterval(feedTimer);
-          feedBtn.disabled = !(client && client.connected);
-        }
+        if (pct >= 100) { clearInterval(feedTimer); feedBtn.disabled = !(client && client.connected); }
       }, 80);
     });
 
-    // Mengirim jadwal baru ke alat lewat action "set_schedule".
-    // Firmware akan mem-parsing tiap string "HH:MM" (sscanf), menyimpannya ke NVS (saveSchedulesToNVS),
-    // lalu membalas konfirmasi lewat publishCurrentSchedules() -> pesan {type:"active_schedules", ...}.
     sendScheduleBtn.addEventListener('click', () => {
       if (!client || !client.connected) return;
       const topicCmd = document.getElementById('cfgTopicCmd').value.trim();
       const raw = document.getElementById('cfgSchedule').value.trim();
-
-      if (!raw) {
-        log('Isi minimal satu jadwal (format HH:MM) sebelum mengirim.', 'SYSTEM');
-        return;
-      }
-
+      if (!raw) { log('Isi minimal satu jadwal (format HH:MM) sebelum mengirim.', 'SYSTEM'); return; }
       let times = raw.split(',').map(t => t.trim()).filter(Boolean);
-      const timeFormat = /^([01]\d|2[0-3]):([0-5]\d)$/;
-      const validTimes = times.filter(t => timeFormat.test(t));
-      const invalidTimes = times.filter(t => !timeFormat.test(t));
-
-      if (invalidTimes.length > 0) {
-        log('Format tidak valid dan diabaikan: ' + invalidTimes.join(', ') + ' (gunakan HH:MM).', 'SYSTEM');
-      }
-      if (validTimes.length === 0) {
-        log('Tidak ada jadwal valid untuk dikirim.', 'SYSTEM');
-        return;
-      }
-      if (validTimes.length > 5) {
-        log('Firmware hanya menyimpan maksimal 5 jadwal, sisanya (' + validTimes.slice(5).join(', ') + ') tidak akan tersimpan.', 'SYSTEM');
-      }
-
-      const payload = JSON.stringify({ action: 'set_schedule', schedules: validTimes.slice(0, 5) });
+      const fmt = /^([01]\d|2[0-3]):([0-5]\d)$/;
+      const valid = times.filter(t => fmt.test(t));
+      const invalid = times.filter(t => !fmt.test(t));
+      if (invalid.length > 0) log('Format tidak valid: ' + invalid.join(', '), 'SYSTEM');
+      if (valid.length === 0) { log('Tidak ada jadwal valid untuk dikirim.', 'SYSTEM'); return; }
+      if (valid.length > 5) log('Maks 5 jadwal, sisanya diabaikan.', 'SYSTEM');
+      const payload = JSON.stringify({ action: 'set_schedule', schedules: valid.slice(0, 5) });
       client.publish(topicCmd, payload);
       log(payload + '  →  dikirim ke ' + topicCmd, 'PUBLISH');
-
-      scheduleSyncNote.textContent = 'Jadwal terkirim, menunggu konfirmasi penyimpanan (NVS) dari alat...';
+      scheduleSyncNote.textContent = 'Jadwal terkirim, menunggu konfirmasi dari alat...';
       scheduleSyncNote.style.color = 'var(--amber)';
     });
 
-    // Render awal: kosong sampai alat mengonfirmasi jadwal lewat MQTT (type: active_schedules)
     renderSchedule();
-
-    // Belum auto-connect: kredensial broker sudah diisi otomatis sesuai firmware, tinggal klik Hubungkan
     setConn('offline', 'Klik Hubungkan untuk tersambung ke broker');
   </script>
 </body>
